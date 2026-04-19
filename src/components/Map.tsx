@@ -17,6 +17,7 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 interface MapProps {
+  currentLocation?: PathPoint | null;
   currentPath: PathPoint[];
   historyPaths?: PathPoint[][];
   trailPath?: PathPoint[];
@@ -85,6 +86,7 @@ function MapActions({
 }
 
 export default function Map({ 
+  currentLocation = null,
   currentPath, 
   historyPaths = [], 
   trailPath = [], 
@@ -99,7 +101,7 @@ export default function Map({
   followMode = true,
   onManualPan
 }: MapProps) {
-  const lastPoint = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
+  const lastPoint = currentLocation || (currentPath.length > 0 ? currentPath[currentPath.length - 1] : null);
 
   const activeCourse = course !== null ? course : deviceHeading;
   const rotation = mapRotationMode === 'heading' && activeCourse !== null ? activeCourse : 0;

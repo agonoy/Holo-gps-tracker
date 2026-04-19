@@ -22,6 +22,8 @@ export default function App() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [activeRide, setActiveRide] = useState<boolean>(false);
   const [currentPath, setCurrentPath] = useState<PathPoint[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<PathPoint | null>(null);
+  const lastSavedPointRef = useRef<PathPoint | null>(null);
   const [currentDistance, setCurrentDistance] = useState<number>(0);
   const [historyRides, setHistoryRides] = useState<PathPoint[][]>([]);
   const [ridesMetadata, setRidesMetadata] = useState<Ride[]>([]);
@@ -197,6 +199,10 @@ export default function App() {
           setActiveRide(true);
           setIsPaused(data.isPaused || false);
           setCurrentPath(data.currentPath || []);
+          if (data.currentPath && data.currentPath.length > 0) {
+            lastSavedPointRef.current = data.currentPath[data.currentPath.length - 1];
+            setCurrentLocation(data.currentPath[data.currentPath.length - 1]);
+          }
           setCurrentDistance(data.currentDistance || 0);
           setSelectedVehicleId(data.selectedVehicleId || null);
           if (!data.isPaused && data.activeRide) {
@@ -240,6 +246,8 @@ export default function App() {
     setActiveRide(true);
     setIsPaused(false);
     setCurrentPath([]);
+    setCurrentLocation(null);
+    lastSavedPointRef.current = null;
     setCurrentDistance(0);
     resumeWatching();
   };
@@ -271,24 +279,25 @@ export default function App() {
             setCourse(pos.coords.heading);
           }
 
-          setCurrentPath(prev => {
-            if (prev.length > 0) {
-              const last = prev[prev.length - 1];
-              const dist = getDistance(last.lat, last.lng, newPoint.lat, newPoint.lng);
-              
-              if (!isValidHeading && dist > 0.005) {
-                const b = getBearing(last.lat, last.lng, newPoint.lat, newPoint.lng);
-                setCourse(b);
-              }
+          setCurrentLocation(newPoint);
 
-              if (dist > 0.005) {
-                setCurrentDistance(d => d + dist);
-                return [...prev, newPoint];
-              }
-              return prev;
+          const last = lastSavedPointRef.current;
+          if (last) {
+            const dist = getDistance(last.lat, last.lng, newPoint.lat, newPoint.lng);
+            
+            if (!isValidHeading && dist > 0.005) {
+              setCourse(getBearing(last.lat, last.lng, newPoint.lat, newPoint.lng));
             }
-            return [newPoint];
-          });
+
+            if (dist > 0.005) {
+              lastSavedPointRef.current = newPoint;
+              setCurrentDistance(d => d + dist);
+              setCurrentPath(prev => [...prev, newPoint]);
+            }
+          } else {
+            lastSavedPointRef.current = newPoint;
+            setCurrentPath([newPoint]);
+          }
         },
         (err) => {
           let msg = "GPS Signal Lost";
@@ -341,6 +350,8 @@ export default function App() {
     setIsPaused(false);
     setBacktrackEnabled(false);
     setGpsAccuracy(0);
+    setCurrentLocation(null);
+    lastSavedPointRef.current = null;
     setCurrentAddress('Searching...');
 
     if (finalPath.length < 2 || finalDistance < 0.01) return;
@@ -733,6 +744,7 @@ export default function App() {
         {/* Map Center */}
         <section className="flex-1 bg-[#0c111d] relative group/map">
           <Map 
+            currentLocation={currentLocation}
             currentPath={currentPath} 
             historyPaths={historyRides}
             trailPath={trails.find(t => t.id === selectedTrailId)?.path}
