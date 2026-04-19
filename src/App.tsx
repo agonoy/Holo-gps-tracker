@@ -760,7 +760,11 @@ export default function App() {
           
           <div className="absolute top-6 left-16 z-[1000] flex flex-col gap-2 pointer-events-none">
             {activeRide && currentPath.length > 0 && (
-              <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-all hover:scale-105">
+              <motion.div 
+                drag
+                dragMomentum={false}
+                className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-shadow hover:shadow-2xl cursor-grab active:cursor-grabbing"
+              >
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
                   <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -784,8 +788,12 @@ export default function App() {
             )}
           </div>
 
-          <div className="absolute top-6 right-6 z-[1000] flex flex-col items-end gap-2">
-            <div className="flex flex-col gap-2 items-end">
+          <div className="absolute top-6 right-6 z-[1000] flex flex-col items-end gap-2 pointer-events-none">
+            <motion.div 
+              drag
+              dragMomentum={false}
+              className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing"
+            >
               <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex items-center gap-3 transition-all">
                 {/* Visual Compass Needle */}
                 <div 
@@ -835,7 +843,7 @@ export default function App() {
                   {mapRotationMode === 'heading' ? 'Heading' : 'North'}
                 </button>
               </div>
-            </div>
+            </motion.div>
           </div>
           
           <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-[1000]">
