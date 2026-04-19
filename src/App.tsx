@@ -52,7 +52,8 @@ export default function App() {
   const vehicleInputRef = useRef<HTMLInputElement>(null);
   const trailInputRef = useRef<HTMLInputElement>(null);
 
-  const [heading, setHeading] = useState<number | null>(null);
+  const [course, setCourse] = useState<number | null>(null);
+  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [mapRotationMode, setMapRotationMode] = useState<'north-up' | 'heading'>('north-up');
 
   // Helper for consistent error logging
@@ -71,10 +72,10 @@ export default function App() {
         // Alpha is 0 at North, 90 at West, 180 at South, 270 at East (counter-clockwise)
         // We want clockwise: 0-N, 90-E, 180-S, 270-W
         const h = (360 - e.alpha) % 360;
-        setHeading(h);
+        setDeviceHeading(h);
       } else if ((e as any).webkitCompassHeading !== undefined) {
         // iOS specific
-        setHeading((e as any).webkitCompassHeading);
+        setDeviceHeading((e as any).webkitCompassHeading);
       }
     };
 
@@ -264,8 +265,10 @@ export default function App() {
           setLastGpsUpdate(Date.now());
           setGpsError(null); // Clear error on success
 
-          if (pos.coords.heading !== null) {
-            setHeading(pos.coords.heading);
+          const isValidHeading = pos.coords.heading !== null && !isNaN(pos.coords.heading);
+
+          if (isValidHeading) {
+            setCourse(pos.coords.heading);
           }
 
           setCurrentPath(prev => {
@@ -273,9 +276,9 @@ export default function App() {
               const last = prev[prev.length - 1];
               const dist = getDistance(last.lat, last.lng, newPoint.lat, newPoint.lng);
               
-              if (pos.coords.heading === null && dist > 0.005) {
+              if (!isValidHeading && dist > 0.005) {
                 const b = getBearing(last.lat, last.lng, newPoint.lat, newPoint.lng);
-                setHeading(b);
+                setCourse(b);
               }
 
               if (dist > 0.005) {
@@ -736,7 +739,8 @@ export default function App() {
             showBacktrack={backtrackEnabled}
             gpsAccuracy={gpsAccuracy}
             recenterTrigger={recenterTrigger}
-            heading={heading}
+            course={course}
+            deviceHeading={deviceHeading}
             mapRotationMode={mapRotationMode}
             followMode={followMode}
             onManualPan={() => setFollowMode(false)}
@@ -755,7 +759,7 @@ export default function App() {
                       className="text-green-500 transition-transform duration-500" 
                       size={16} 
                       style={{ 
-                        transform: `rotate(${heading !== null ? (getBearing(currentPath[currentPath.length-1].lat, currentPath[currentPath.length-1].lng, currentPath[0].lat, currentPath[0].lng) - (mapRotationMode === 'heading' ? heading : 0)) : 0}deg)` 
+                        transform: `rotate(${course !== null ? (getBearing(currentPath[currentPath.length-1].lat, currentPath[currentPath.length-1].lng, currentPath[0].lat, currentPath[0].lng) - (mapRotationMode === 'heading' ? course : 0)) : 0}deg)` 
                       }} 
                     />
                   </div>
@@ -774,7 +778,7 @@ export default function App() {
                 {/* Visual Compass Needle */}
                 <div 
                   className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-500"
-                  style={{ transform: `rotate(${mapRotationMode === 'heading' && heading !== null ? -heading : 0}deg)` }}
+                  style={{ transform: `rotate(${mapRotationMode === 'heading' && (course !== null || deviceHeading !== null) ? -(course !== null ? course : deviceHeading!) : 0}deg)` }}
                 >
                   <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
                   <div className="w-px h-full bg-border/30 absolute" />
@@ -785,10 +789,10 @@ export default function App() {
 
                 <div className="flex flex-col items-end">
                   <span className="text-[11px] font-black tracking-widest text-accent uppercase">
-                    {heading !== null ? `${getCardinalDirection(heading)} ${Math.round(heading)}°` : '---°'}
+                    {(deviceHeading !== null || course !== null) ? `${getCardinalDirection((deviceHeading !== null ? deviceHeading : course)!)} ${Math.round((deviceHeading !== null ? deviceHeading : course)!)}°` : '---°'}
                   </span>
                   <span className="text-[8px] font-bold text-text-dim uppercase leading-none">
-                    {heading !== null ? getFullDirection(heading) : 'Compass Off'}
+                    {(deviceHeading !== null || course !== null) ? getFullDirection((deviceHeading !== null ? deviceHeading : course)!) : 'Compass Off'}
                   </span>
                 </div>
                 <div className="w-px h-6 bg-border" />

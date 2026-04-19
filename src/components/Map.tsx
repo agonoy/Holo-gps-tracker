@@ -25,7 +25,8 @@ interface MapProps {
   showBacktrack?: boolean;
   gpsAccuracy?: number;
   recenterTrigger?: number;
-  heading?: number | null;
+  course?: number | null;
+  deviceHeading?: number | null;
   mapRotationMode?: 'north-up' | 'heading';
   followMode?: boolean;
   onManualPan?: () => void;
@@ -36,7 +37,8 @@ function MapActions({
   currentPoint, 
   trailPath,
   mapRotationMode,
-  heading,
+  course,
+  deviceHeading,
   followMode,
   onManualPan
 }: { 
@@ -44,7 +46,8 @@ function MapActions({
   currentPoint: [number, number] | null, 
   trailPath?: PathPoint[],
   mapRotationMode?: 'north-up' | 'heading',
-  heading?: number | null,
+  course?: number | null,
+  deviceHeading?: number | null,
   followMode?: boolean,
   onManualPan?: () => void
 }) {
@@ -69,7 +72,7 @@ function MapActions({
     if (followMode && currentPoint) {
       map.panTo(currentPoint, { animate: true });
     }
-  }, [followMode, heading, mapRotationMode, currentPoint, map]);
+  }, [followMode, course, mapRotationMode, currentPoint, map]);
 
   useEffect(() => {
     if (trailPath && trailPath.length > 0) {
@@ -90,14 +93,16 @@ export default function Map({
   showBacktrack,
   gpsAccuracy = 0,
   recenterTrigger = 0,
-  heading = null,
+  course = null,
+  deviceHeading = null,
   mapRotationMode = 'north-up',
   followMode = true,
   onManualPan
 }: MapProps) {
   const lastPoint = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
 
-  const rotation = mapRotationMode === 'heading' && heading !== null ? -heading : 0;
+  const activeCourse = course !== null ? course : deviceHeading;
+  const rotation = mapRotationMode === 'heading' && activeCourse !== null ? activeCourse : 0;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
   const polylineOptions = { color: '#38bdf8', weight: 4, opacity: 0.8 };
@@ -106,15 +111,18 @@ export default function Map({
   const trailOptions = { color: '#4ade80', weight: 6, opacity: 0.6 };
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <MapContainer 
-        center={lastPoint ? [lastPoint.lat, lastPoint.lng] : center} 
-        zoom={zoom} 
-        scrollWheelZoom={true} 
-        className="h-full w-full bg-brand-surface border-0 transition-transform duration-500 ease-out"
+    <div className="relative h-full w-full overflow-hidden bg-brand-surface">
+      <div 
+        className="absolute inset-0 transition-transform duration-500 ease-out"
         style={{ transform: `rotate(${-rotation}deg) scale(${mapRotationMode === 'heading' ? 1.4 : 1})` }}
       >
-        <TileLayer
+        <MapContainer 
+          center={lastPoint ? [lastPoint.lat, lastPoint.lng] : center} 
+          zoom={zoom} 
+          scrollWheelZoom={true} 
+          className="h-full w-full bg-transparent border-0"
+        >
+          <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
@@ -123,7 +131,8 @@ export default function Map({
           currentPoint={lastPoint ? [lastPoint.lat, lastPoint.lng] : null}
           trailPath={trailPath}
           mapRotationMode={mapRotationMode}
-          heading={heading}
+          course={course}
+          deviceHeading={deviceHeading}
           followMode={followMode}
           onManualPan={onManualPan}
         />
@@ -212,31 +221,59 @@ export default function Map({
           icon={L.divIcon({
             className: 'current-marker',
             html: `<div style="
-              width: 32px; 
-              height: 32px; 
+              width: 120px; 
+              height: 120px; 
               display: flex;
               align-items: center;
               justify-content: center;
-              transform: rotate(${mapRotationMode === 'heading' ? 0 : (heading || 0)}deg);
+              transform: rotate(${deviceHeading !== null ? deviceHeading : (course || 0)}deg);
               transition: transform 0.3s ease-out;
+              position: relative;
             ">
+              <!-- Vision Cone -->
+              <svg viewBox="0 0 100 100" width="120" height="120" style="position: absolute; top: -10px; left: 0; pointer-events: none; opacity: ${deviceHeading !== null ? 0.4 : 0};">
+                <defs>
+                  <radialGradient id="cone-grad" cx="50%" cy="100%" r="100%">
+                    <stop offset="0%" stop-color="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stop-opacity="0.8" />
+                    <stop offset="100%" stop-color="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stop-opacity="0" />
+                  </radialGradient>
+                </defs>
+                <!-- A cone that originates at the center (50, 50) and spreads upward -->
+                <path d="M50 50 L 10 0 Q 50 -10 90 0 Z" fill="url(#cone-grad)" />
+              </svg>
+              
+              <!-- Blue Dot Container -->
               <div style="
                 position: absolute;
-                width: 100%;
-                height: 100%;
-                background: radial-gradient(circle, rgba(56, 189, 248, 0.4), transparent);
-                animation: pulse 2s infinite;
-              "></div>
-              <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2">
-                <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
-              </svg>
+                width: 24px;
+                height: 24px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              ">
+                <!-- Pulse ring -->
+                <div style="
+                  position: absolute;
+                  width: 48px;
+                  height: 48px;
+                  background: radial-gradient(circle, ${isSignalLost ? 'rgba(148, 163, 184, 0.4)' : 'rgba(56, 189, 248, 0.4)'}, transparent);
+                  border-radius: 50%;
+                  animation: pulse 2s infinite;
+                "></div>
+                
+                <!-- Center Arrow -->
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${(activeCourse || 0) - (deviceHeading !== null ? deviceHeading : (activeCourse || 0))}deg);">
+                  <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
+                </svg>
+              </div>
             </div>`,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
+            iconSize: [120, 120],
+            iconAnchor: [60, 60]
           })}
         />
       )}
     </MapContainer>
+      </div>
     </div>
   );
 }
