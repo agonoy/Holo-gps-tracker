@@ -763,7 +763,7 @@ export default function App() {
               <motion.div 
                 drag
                 dragMomentum={false}
-                className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-shadow hover:shadow-2xl cursor-grab active:cursor-grabbing"
+                className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-shadow hover:shadow-2xl cursor-grab active:cursor-grabbing touch-none"
               >
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
@@ -792,7 +792,7 @@ export default function App() {
             <motion.div 
               drag
               dragMomentum={false}
-              className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing"
+              className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing touch-none"
             >
               <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex items-center gap-3 transition-all">
                 {/* Visual Compass Needle */}
@@ -817,6 +817,7 @@ export default function App() {
                 </div>
                 <div className="w-px h-6 bg-border" />
                 <button 
+                  onPointerDownCapture={(e) => e.stopPropagation()}
                   onClick={async () => {
                     if (mapRotationMode === 'north-up') {
                       if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
