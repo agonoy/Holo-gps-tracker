@@ -1,20 +1,55 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Holoholo GPS Tracker
 
-# Run and deploy your AI Studio app
+Holoholo GPS Tracker is now a fully static, local-only ride tracker that runs on GitHub Pages with no backend setup.
 
-This contains everything you need to run your app locally.
+Your rides, trail profiles, and saved trails are stored in the browser with `localStorage`. Nothing is sent to Firebase or any other remote database.
 
-View your app in AI Studio: https://ai.studio/apps/980817f5-767c-4d55-aa16-1b58d0252500
+## What Changed
+
+- Firebase Auth was removed
+- Firestore persistence was replaced with browser storage
+- The app now works on GitHub Pages without backend credentials
+- Ride history, tracker profiles, and saved trails persist on the current browser/device
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+Prerequisite: Node.js 20+
 
+```bash
+npm install
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Production Build
+
+```bash
+npm run build
+npm run preview
+```
+
+## Deploying To GitHub Pages
+
+Push the branch to GitHub and let the existing Pages workflow build the app. The Vite base path is already configured for:
+
+`https://agonoy.github.io/Holoholo-GPS-Tracker/`
+
+## Local-Only Storage Notes
+
+- Data is stored in this browser only
+- Clearing browser storage will remove saved data
+- Data does not sync across devices automatically
+- GPX and KML export still work for saved trails
+
+## Current Behavior
+
+- Start and stop rides locally
+- Save named tracker profiles
+- Save and follow trails
+- Export trails as GPX or KML
+- Continue to use browser geolocation and reverse geocoding
+
+## Development Notes
+
+- Main app: [src/App.tsx](src/App.tsx)
+- Local persistence helpers: [src/lib/localData.ts](src/lib/localData.ts)
+- Map rendering: [src/components/Map.tsx](src/components/Map.tsx)

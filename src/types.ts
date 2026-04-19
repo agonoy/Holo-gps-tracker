@@ -14,7 +14,7 @@ export interface Vehicle {
   totalMileage: number;
   tripMileage: number;
   userId: string;
-  createdAt: string;
+  createdAt: number;
 }
 
 export interface Ride {
@@ -23,8 +23,8 @@ export interface Ride {
   userId: string;
   distance: number;
   path: PathPoint[];
-  startTime: any;
-  endTime?: any;
+  startTime: number;
+  endTime?: number;
   duration?: number;
 }
 
@@ -34,5 +34,5 @@ export interface Trail {
   userId: string;
   path: PathPoint[];
   distance: number;
-  createdAt: any;
+  createdAt: number;
 }

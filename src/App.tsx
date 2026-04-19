@@ -4,41 +4,21 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import { auth, db } from './lib/firebase';
-import { 
-  signInWithPopup, 
-  signInWithRedirect,
-  GoogleAuthProvider, 
-  onAuthStateChanged, 
-  User,
-  signOut 
-} from 'firebase/auth';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc,
-  getDocs,
-  doc, 
-  serverTimestamp,
-  orderBy,
-  limit,
-  Timestamp
-} from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bike, Play, Square, RotateCcw, Plus, LogOut, Navigation, Settings, Trash2, Save, Map as MapIcon, ChevronRight, Satellite, Download, FileJson, Pause, Copy, Pencil, Target, Compass, ArrowUp, Menu, X } from 'lucide-react';
+import { Bike, Play, Square, RotateCcw, Plus, Navigation, Settings, Trash2, Save, Map as MapIcon, ChevronRight, Satellite, Download, FileJson, Pause, Copy, Pencil, Target, Compass, ArrowUp, Menu, X } from 'lucide-react';
 import Map from './components/Map';
 import { getDistance, formatMileage, getAddress, getBearing, getCardinalDirection, getFullDirection } from './lib/geo';
 import { exportToGPX, exportToKML, downloadFile } from './lib/export';
 import type { Vehicle, PathPoint, Ride, VehicleType, Trail } from './types';
+import { createLocalId, loadLocalData, saveLocalData } from './lib/localData';
+
+const LOCAL_USER_ID = 'local-device';
+const LOCAL_MODE_LABEL = 'Local Only';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [rides, setRides] = useState<Ride[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [activeRide, setActiveRide] = useState<boolean>(false);
   const [currentPath, setCurrentPath] = useState<PathPoint[]>([]);
@@ -68,8 +48,6 @@ export default function App() {
   const [useHighAccuracy, setUseHighAccuracy] = useState(true);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   
   const vehicleInputRef = useRef<HTMLInputElement>(null);
   const trailInputRef = useRef<HTMLInputElement>(null);
@@ -166,62 +144,47 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    const localData = loadLocalData();
+    setVehicles(localData.vehicles);
+    setRides(localData.rides);
+    setTrails(localData.trails);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (!user) return;
-
-    const vQuery = query(collection(db, 'vehicles'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(vQuery, (snapshot) => {
-      const vData = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Vehicle));
-      setVehicles(vData);
-      if (vData.length > 0 && !selectedVehicleId) {
-        setSelectedVehicleId(vData[0].id);
-      }
-    }, (error) => {
-      console.error("Vehicles subscription error:", error.message);
-    });
-
-    return () => unsub();
-  }, [user, selectedVehicleId]);
+    if (!loading) {
+      saveLocalData({ vehicles, rides, trails });
+    }
+  }, [vehicles, rides, trails, loading]);
 
   useEffect(() => {
-    if (!user || !selectedVehicleId) return;
+    if (vehicles.length === 0) {
+      setSelectedVehicleId(null);
+      return;
+    }
 
-    const rQuery = query(
-      collection(db, 'rides'), 
-      where('userId', '==', user.uid),
-      where('vehicleId', '==', selectedVehicleId),
-      orderBy('startTime', 'desc'),
-      limit(5)
+    setSelectedVehicleId((current) =>
+      current && vehicles.some((vehicle) => vehicle.id === current)
+        ? current
+        : vehicles[0].id,
     );
-
-    const unsub = onSnapshot(rQuery, (snapshot) => {
-      const rides = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Ride));
-      setRidesMetadata(rides);
-      setHistoryRides(rides.map(r => r.path));
-    }, (error) => {
-      console.error("Rides subscription error:", error.message);
-    });
-
-    return () => unsub();
-  }, [user, selectedVehicleId]);
+  }, [vehicles]);
 
   useEffect(() => {
-    if (!user) return;
-    const tQuery = query(collection(db, 'trails'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(tQuery, (snapshot) => {
-      setTrails(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Trail)));
-    }, (error) => {
-      console.error("Trails subscription error:", error.message);
-    });
-    return () => unsub();
-  }, [user]);
+    if (!selectedVehicleId) {
+      setRidesMetadata([]);
+      setHistoryRides([]);
+      return;
+    }
+
+    const recentRides = rides
+      .filter((ride) => ride.vehicleId === selectedVehicleId)
+      .sort((left, right) => right.startTime - left.startTime)
+      .slice(0, 5);
+
+    setRidesMetadata(recentRides);
+    setHistoryRides(recentRides.map((ride) => ride.path));
+  }, [rides, selectedVehicleId]);
 
   // Session Persistence
   useEffect(() => {
@@ -269,37 +232,6 @@ export default function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  const login = async () => {
-    const provider = new GoogleAuthProvider();
-    setAuthError(null);
-    setIsAuthenticating(true);
-
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      const code = error?.code ?? '';
-
-      // Popups are especially brittle on mobile Safari / embedded browsers.
-      if (
-        code === 'auth/popup-blocked' ||
-        code === 'auth/popup-closed-by-user' ||
-        code === 'auth/cancelled-popup-request'
-      ) {
-        await signInWithRedirect(auth, provider);
-        return;
-      }
-
-      setAuthError(
-        code === 'auth/unauthorized-domain'
-          ? 'This site domain is not authorized in Firebase Auth yet. Add your GitHub Pages domain in Firebase Authentication > Settings > Authorized domains.'
-          : formatError(error),
-      );
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
-  const logout = () => signOut(auth);
 
   const startRide = () => {
     if (!selectedVehicleId || activeRide) return;
@@ -417,21 +349,31 @@ export default function App() {
       const startTime = finalPath[0].timestamp;
       const endTime = finalPath[finalPath.length - 1].timestamp;
       const duration = Math.floor((endTime - startTime) / 1000);
-
-      await addDoc(collection(db, 'rides'), {
-        userId: user?.uid,
+      const newRide: Ride = {
+        id: createLocalId('ride'),
+        userId: LOCAL_USER_ID,
         vehicleId: selectedVehicleId,
         distance: finalDistance,
         path: finalPath,
-        startTime: new Date(startTime),
-        endTime: new Date(endTime),
-        duration: duration
-      });
+        startTime,
+        endTime,
+        duration,
+      };
 
-      await updateDoc(doc(db, 'vehicles', selectedVehicleId), {
-        totalMileage: vehicle.totalMileage + finalDistance,
-        tripMileage: vehicle.tripMileage + finalDistance
-      });
+      setRides((previous) =>
+        [newRide, ...previous].sort((left, right) => right.startTime - left.startTime),
+      );
+      setVehicles((previous) =>
+        previous.map((entry) =>
+          entry.id === selectedVehicleId
+            ? {
+                ...entry,
+                totalMileage: vehicle.totalMileage + finalDistance,
+                tripMileage: vehicle.tripMileage + finalDistance,
+              }
+            : entry,
+        ),
+      );
     } catch (e) {
       console.error("Error saving ride:", formatError(e));
     }
@@ -440,29 +382,20 @@ export default function App() {
   const resetTrip = async () => {
     if (!selectedVehicleId) return;
     try {
-      await updateDoc(doc(db, 'vehicles', selectedVehicleId), {
-        tripMileage: 0
-      });
+      setVehicles((previous) =>
+        previous.map((entry) =>
+          entry.id === selectedVehicleId ? { ...entry, tripMileage: 0 } : entry,
+        ),
+      );
     } catch (e) {
       console.error("Error resetting trip:", formatError(e));
     }
   };
 
   const deleteVehicle = async (id: string) => {
-    if (!user) return;
     try {
-      // 1. Delete all rides for this vehicle
-      const rQuery = query(
-        collection(db, 'rides'), 
-        where('userId', '==', user.uid),
-        where('vehicleId', '==', id)
-      );
-      const rides = await getDocs(rQuery);
-      const batchDelete = rides.docs.map(d => deleteDoc(d.ref));
-      await Promise.all(batchDelete);
-
-      // 2. Delete vehicle
-      await deleteDoc(doc(db, 'vehicles', id));
+      setRides((previous) => previous.filter((ride) => ride.vehicleId !== id));
+      setVehicles((previous) => previous.filter((vehicle) => vehicle.id !== id));
       
       if (selectedVehicleId === id) {
         setSelectedVehicleId(null);
@@ -476,13 +409,18 @@ export default function App() {
   const saveTrailFromCurrent = async () => {
     if (currentPath.length < 2 || !trailName) return;
     try {
-      await addDoc(collection(db, 'trails'), {
-        userId: user?.uid,
+      const newTrail: Trail = {
+        id: createLocalId('trail'),
+        userId: LOCAL_USER_ID,
         name: trailName,
         path: currentPath,
         distance: currentDistance,
-        createdAt: serverTimestamp()
-      });
+        createdAt: Date.now(),
+      };
+
+      setTrails((previous) =>
+        [newTrail, ...previous].sort((left, right) => right.createdAt - left.createdAt),
+      );
       setShowSaveTrailModal(false);
       setTrailName('');
     } catch (e) {
@@ -492,7 +430,7 @@ export default function App() {
 
   const deleteTrail = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'trails', id));
+      setTrails((previous) => previous.filter((trail) => trail.id !== id));
       if (selectedTrailId === id) setSelectedTrailId(null);
     } catch (e) {
       console.error("Error deleting trail:", formatError(e));
@@ -501,7 +439,7 @@ export default function App() {
 
   const deleteRide = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'rides', id));
+      setRides((previous) => previous.filter((ride) => ride.id !== id));
     } catch (e) {
       console.error("Error deleting ride:", formatError(e));
     }
@@ -510,9 +448,13 @@ export default function App() {
   const renameVehicle = async () => {
     if (!editingVehicleId || !editingVehicleName.trim()) return;
     try {
-      await updateDoc(doc(db, 'vehicles', editingVehicleId), {
-        name: editingVehicleName.trim()
-      });
+      setVehicles((previous) =>
+        previous.map((entry) =>
+          entry.id === editingVehicleId
+            ? { ...entry, name: editingVehicleName.trim() }
+            : entry,
+        ),
+      );
       setEditingVehicleId(null);
     } catch (e) {
       console.error("Error renaming vehicle:", formatError(e));
@@ -527,14 +469,19 @@ export default function App() {
     if (!newVehicleName) return;
     
     try {
-      await addDoc(collection(db, 'vehicles'), {
-        userId: user?.uid,
+      const vehicle: Vehicle = {
+        id: createLocalId('vehicle'),
+        userId: LOCAL_USER_ID,
         name: newVehicleName,
         type: newVehicleType,
         totalMileage: 0,
         tripMileage: 0,
-        createdAt: serverTimestamp()
-      });
+        createdAt: Date.now(),
+      };
+
+      setVehicles((previous) =>
+        [...previous, vehicle].sort((left, right) => right.createdAt - left.createdAt),
+      );
       setShowVehicleModal(false);
       setNewVehicleName('');
     } catch (e) {
@@ -542,38 +489,7 @@ export default function App() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_OAHU_RECORDS...</div>;
-
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-bg p-8 text-center">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md w-full">
-          <div className="bg-panel p-12 rounded-3xl border border-border shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5">
-              <Navigation size={120} />
-            </div>
-            <Navigation className="w-16 h-16 text-accent mx-auto mb-6" />
-            <h1 className="text-4xl font-black mb-4 tracking-tight uppercase">Holoholo Tracker</h1>
-            <p className="text-text-dim mb-8 leading-relaxed font-medium">
-              Track your miles on the island. Keep a permanent record of your personal activity profiles.
-            </p>
-            <button 
-              onClick={login}
-              disabled={isAuthenticating}
-              className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 active:scale-95 uppercase tracking-wider"
-            >
-              {isAuthenticating ? 'Connecting...' : 'Connect with Google'}
-            </button>
-            {authError && (
-              <p className="mt-4 text-sm text-red-300 leading-relaxed">
-                {authError}
-              </p>
-            )}
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_LOCAL_RECORDS...</div>;
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
@@ -662,11 +578,8 @@ export default function App() {
           </div>
           <div className="h-4 w-px bg-border hidden sm:block" />
           <div className="text-[10px] text-text-dim font-bold uppercase tracking-widest hidden sm:block">
-            Honolulu, HI | 78°F
+            {LOCAL_MODE_LABEL} | This Browser
           </div>
-          <button onClick={logout} className="p-2 text-text-dim hover:text-text transition-colors">
-            <LogOut size={18} />
-          </button>
         </div>
       </header>
 
@@ -806,7 +719,7 @@ export default function App() {
                     onClick={stopRide}
                     className="w-full bg-white text-bg font-black py-4 rounded-xl active:scale-95 transition-all text-xs uppercase tracking-widest"
                   >
-                    Stop & Sync
+                    Stop & Save
                   </button>
                 )}
               </div>
@@ -1060,7 +973,7 @@ export default function App() {
                 <div key={ride.id} className="group border-b border-border pb-3 last:border-0 relative">
                   <div className="text-xs font-bold text-text mb-1 flex justify-between items-center">
                     <span>
-                      {ride.startTime && (typeof ride.startTime === 'object' && 'toDate' in ride.startTime ? (ride.startTime as any).toDate() : new Date(ride.startTime)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(ride.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                     <button 
                       onClick={() => deleteRide(ride.id)}
@@ -1141,7 +1054,7 @@ export default function App() {
             <div className="sleek-label">Device Status</div>
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-[#4ade80]" />
-              <span className="text-[10px] font-bold text-text-dim uppercase">Device Synced</span>
+              <span className="text-[10px] font-bold text-text-dim uppercase">Saved In Browser</span>
             </div>
           </div>
         </motion.aside>
