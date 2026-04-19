@@ -63,17 +63,20 @@ function MapActions({
     }
   });
   
-  useEffect(() => {
-    if (recenterTrigger > 0 && currentPoint) {
-      map.setView(currentPoint, map.getZoom());
-    }
-  }, [recenterTrigger, currentPoint, map]);
+  const lat = currentPoint ? currentPoint[0] : null;
+  const lng = currentPoint ? currentPoint[1] : null;
 
   useEffect(() => {
-    if (followMode && currentPoint) {
-      map.panTo(currentPoint, { animate: true });
+    if (recenterTrigger > 0 && lat !== null && lng !== null) {
+      map.setView([lat, lng], map.getZoom());
     }
-  }, [followMode, course, mapRotationMode, currentPoint, map]);
+  }, [recenterTrigger, lat, lng, map]);
+
+  useEffect(() => {
+    if (followMode && lat !== null && lng !== null) {
+      map.panTo([lat, lng], { animate: true });
+    }
+  }, [followMode, lat, lng, map]);
 
   useEffect(() => {
     if (trailPath && trailPath.length > 0) {

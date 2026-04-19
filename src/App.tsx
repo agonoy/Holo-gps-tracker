@@ -795,7 +795,7 @@ export default function App() {
                     <span className="text-[7px] font-bold text-text-dim uppercase">Direct Line</span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
 
