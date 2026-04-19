@@ -1,0 +1,8 @@
+{
+  "name": "Holoholo-GPS-Tracker",
+  "description": "GPS mileage and path tracking for bikes, ebikes, and onewheels on Oahu. Tracks odometers and trip paths with real-time GPS integration.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
