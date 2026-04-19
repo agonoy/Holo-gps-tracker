@@ -57,6 +57,8 @@ export default function App() {
   const [course, setCourse] = useState<number | null>(null);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [mapRotationMode, setMapRotationMode] = useState<'north-up' | 'heading'>('north-up');
+  const [showDirectionPanel, setShowDirectionPanel] = useState(true);
+  const [showHeadingPanel, setShowHeadingPanel] = useState(true);
 
   // Helper for consistent error logging
   const formatError = (e: any): string => {
@@ -759,15 +761,24 @@ export default function App() {
           />
           
           <div className="absolute top-6 left-16 z-[1000] flex flex-col gap-2 pointer-events-none">
-            {activeRide && currentPath.length > 0 && (
+            {showDirectionPanel && activeRide && currentPath.length > 0 && (
               <motion.div 
                 drag
                 dragMomentum={false}
                 className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-shadow hover:shadow-2xl cursor-grab active:cursor-grabbing touch-none"
               >
                 <div className="flex items-center justify-between gap-4">
-                  <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  </div>
+                  <button 
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={() => setShowDirectionPanel(false)}
+                    className="p-0.5 hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <X size={12} className="text-text-dim" />
+                  </button>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="bg-green-500/10 p-1.5 rounded-full">
@@ -789,13 +800,21 @@ export default function App() {
           </div>
 
           <div className="absolute top-6 right-6 z-[1000] flex flex-col items-end gap-2 pointer-events-none">
-            <motion.div 
-              drag
-              dragMomentum={false}
-              className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing touch-none"
-            >
-              <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex items-center gap-3 transition-all">
-                {/* Visual Compass Needle */}
+            {showHeadingPanel && (
+              <motion.div 
+                drag
+                dragMomentum={false}
+                className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing touch-none"
+              >
+                <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex items-center gap-3 transition-all">
+                  <button 
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={() => setShowHeadingPanel(false)}
+                    className="absolute -top-1.5 -right-1.5 p-1 bg-panel border border-border rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <X size={10} className="text-text-dim hover:text-white" />
+                  </button>
+                  {/* Visual Compass Needle */}
                 <div 
                   className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-500"
                   style={{ transform: `rotate(${mapRotationMode === 'heading' && (course !== null || deviceHeading !== null) ? -(course !== null ? course : deviceHeading!) : 0}deg)` }}
@@ -843,8 +862,9 @@ export default function App() {
                   <Navigation size={10} className={mapRotationMode === 'heading' ? 'fill-current' : ''} />
                   {mapRotationMode === 'heading' ? 'Heading' : 'North'}
                 </button>
-              </div>
-            </motion.div>
+                </div>
+              </motion.div>
+            )}
           </div>
           
           <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-[1000]">
