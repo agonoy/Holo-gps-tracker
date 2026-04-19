@@ -1,15 +1,46 @@
-export async function getAddress(lat: number, lng: number): Promise<string> {
+const GEOCODE_TIMEOUT_MS = 8000;
+
+export async function getAddress(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<string> {
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  const timeoutId = window.setTimeout(() => controller.abort(), GEOCODE_TIMEOUT_MS);
+
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', abortFromCaller, { once: true });
+    }
+  }
+
   try {
     const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
       headers: {
         'Accept-Language': 'en'
-      }
+      },
+      signal: controller.signal,
     });
+
+    if (!response.ok) {
+      throw new Error(`Geocoding request failed with ${response.status}`);
+    }
+
     const data = await response.json();
     return data.display_name || 'Address not found';
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return 'Location lookup timed out';
+    }
+
     console.error('Geocoding error:', error instanceof Error ? error.message : error);
     return 'Unknown Location';
+  } finally {
+    signal?.removeEventListener('abort', abortFromCaller);
+    window.clearTimeout(timeoutId);
   }
 }
 

@@ -7,6 +7,7 @@ import { useEffect, useState, useRef } from 'react';
 import { auth, db } from './lib/firebase';
 import { 
   signInWithPopup, 
+  signInWithRedirect,
   GoogleAuthProvider, 
   onAuthStateChanged, 
   User,
@@ -67,6 +68,8 @@ export default function App() {
   const [useHighAccuracy, setUseHighAccuracy] = useState(true);
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   
   const vehicleInputRef = useRef<HTMLInputElement>(null);
   const trailInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +112,12 @@ export default function App() {
   
   const watchId = useRef<number | null>(null);
   const addressTimeout = useRef<number | null>(null);
+  const addressRequest = useRef<AbortController | null>(null);
+  const highAccuracyRef = useRef(useHighAccuracy);
+
+  useEffect(() => {
+    highAccuracyRef.current = useHighAccuracy;
+  }, [useHighAccuracy]);
 
   useEffect(() => {
     if (showVehicleModal) {
@@ -128,12 +137,33 @@ export default function App() {
       if (addressTimeout.current) clearTimeout(addressTimeout.current);
       addressTimeout.current = window.setTimeout(async () => {
         const last = currentPath[currentPath.length - 1];
-        const addr = await getAddress(last.lat, last.lng);
-        setCurrentAddress(addr);
+        addressRequest.current?.abort();
+        const controller = new AbortController();
+        addressRequest.current = controller;
+
+        const addr = await getAddress(last.lat, last.lng, controller.signal);
+        if (!controller.signal.aborted) {
+          setCurrentAddress(addr);
+        }
       }, 5000);
     }
-    return () => { if (addressTimeout.current) clearTimeout(addressTimeout.current); };
+    return () => {
+      if (addressTimeout.current) clearTimeout(addressTimeout.current);
+      addressRequest.current?.abort();
+    };
   }, [currentPath.length, activeRide]);
+
+  useEffect(() => {
+    return () => {
+      if (watchId.current !== null) {
+        navigator.geolocation.clearWatch(watchId.current);
+      }
+      if (addressTimeout.current) {
+        clearTimeout(addressTimeout.current);
+      }
+      addressRequest.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -240,7 +270,35 @@ export default function App() {
     };
   }, []);
 
-  const login = () => signInWithPopup(auth, new GoogleAuthProvider());
+  const login = async () => {
+    const provider = new GoogleAuthProvider();
+    setAuthError(null);
+    setIsAuthenticating(true);
+
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
+      const code = error?.code ?? '';
+
+      // Popups are especially brittle on mobile Safari / embedded browsers.
+      if (
+        code === 'auth/popup-blocked' ||
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request'
+      ) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
+      setAuthError(
+        code === 'auth/unauthorized-domain'
+          ? 'This site domain is not authorized in Firebase Auth yet. Add your GitHub Pages domain in Firebase Authentication > Settings > Authorized domains.'
+          : formatError(error),
+      );
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
   const logout = () => signOut(auth);
 
   const startRide = () => {
@@ -253,12 +311,14 @@ export default function App() {
     resumeWatching();
   };
 
-  const resumeWatching = () => {
+  const resumeWatching = (forceHighAccuracy?: boolean) => {
     if ("geolocation" in navigator) {
       if (watchId.current !== null) {
         navigator.geolocation.clearWatch(watchId.current);
       }
 
+      const enableHighAccuracy = forceHighAccuracy ?? highAccuracyRef.current;
+      
       watchId.current = navigator.geolocation.watchPosition(
         (pos) => {
           const newPoint: PathPoint = {
@@ -301,9 +361,9 @@ export default function App() {
           if (err.code === 2) {
             msg = "GPS Signal Lost (Unavailable)";
             // Adaptive Fallback: If high accuracy fails, try lowering it
-            if (useHighAccuracy) {
+            if (enableHighAccuracy) {
               setUseHighAccuracy(false);
-              setTimeout(() => resumeWatching(), 2000);
+              setTimeout(() => resumeWatching(false), 2000);
             }
           }
           if (err.code === 3) msg = "GPS Location Timeout";
@@ -312,7 +372,7 @@ export default function App() {
           console.warn(`GPS Warning (${err.code}): ${err.message || msg}`);
         },
         { 
-          enableHighAccuracy: useHighAccuracy, 
+          enableHighAccuracy, 
           maximumAge: 1000, 
           timeout: 10000 // Increased timeout to 10s
         }
@@ -499,10 +559,16 @@ export default function App() {
             </p>
             <button 
               onClick={login}
+              disabled={isAuthenticating}
               className="w-full bg-white text-black font-black py-4 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 active:scale-95 uppercase tracking-wider"
             >
-              Connect with Google
+              {isAuthenticating ? 'Connecting...' : 'Connect with Google'}
             </button>
+            {authError && (
+              <p className="mt-4 text-sm text-red-300 leading-relaxed">
+                {authError}
+              </p>
+            )}
           </div>
         </motion.div>
       </div>
