@@ -57,9 +57,6 @@ function MapActions({
   useMapEvents({
     dragstart: () => {
       if (onManualPan) onManualPan();
-    },
-    zoomstart: () => {
-      if (onManualPan) onManualPan();
     }
   });
   
