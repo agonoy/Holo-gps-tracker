@@ -87,14 +87,18 @@ export default function App() {
     return str === '{}' ? String(e) : str;
   };
 
-  const requestCompassPermission = async () => {
+  const requestCompassPermission = async (): Promise<boolean> => {
     if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
       try {
-        await (DeviceOrientationEvent as any).requestPermission();
+        const permission = await (DeviceOrientationEvent as any).requestPermission();
+        return permission === 'granted';
       } catch (err) {
         console.error("Error requesting compass permission:", err);
+        return false;
       }
     }
+
+    return window.DeviceOrientationEvent !== undefined;
   };
 
   useEffect(() => {
@@ -567,19 +571,20 @@ export default function App() {
   };
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId);
-  const displayedHeading = course ?? deviceHeading;
+  const displayedHeading = deviceHeading ?? course;
+  const mapHeadingReference = mapRotationMode === 'heading' ? displayedHeading : null;
   const directionToBaseRotationTarget =
-    currentPath.length > 0 && course !== null
+    currentPath.length > 0
       ? getBearing(
           currentPath[currentPath.length - 1].lat,
           currentPath[currentPath.length - 1].lng,
           currentPath[0].lat,
           currentPath[0].lng,
-        ) - (mapRotationMode === 'heading' ? course : 0)
+        ) - (mapHeadingReference ?? 0)
       : 0;
   const directionToBaseRotation = useContinuousAngle(directionToBaseRotationTarget);
   const headingNeedleRotationTarget =
-    mapRotationMode === 'heading' && displayedHeading !== null ? -displayedHeading : 0;
+    mapHeadingReference !== null ? -mapHeadingReference : 0;
   const headingNeedleRotation = useContinuousAngle(headingNeedleRotationTarget);
 
   if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_LOCAL_RECORDS...</div>;
@@ -914,9 +919,9 @@ export default function App() {
                     onPointerDownCapture={(e) => e.stopPropagation()}
                     onClick={async () => {
                       if (mapRotationMode === 'north-up') {
+                        await requestCompassPermission();
                         setFollowMode(true);
                         setMapRotationMode('heading');
-                        await requestCompassPermission();
                       } else {
                         setMapRotationMode('north-up');
                       }

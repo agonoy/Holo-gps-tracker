@@ -134,9 +134,10 @@ export default function Map({
 }: MapProps) {
   const lastPoint = currentLocation || (currentPath.length > 0 ? currentPath[currentPath.length - 1] : null);
 
-  const travelHeading = course;
-  const markerHeading = deviceHeading ?? travelHeading ?? 0;
-  const mapRotationTarget = mapRotationMode === 'heading' && travelHeading !== null ? -travelHeading : 0;
+  const headingReference = deviceHeading ?? course;
+  const markerHeading = headingReference ?? 0;
+  const mapRotationTarget =
+    mapRotationMode === 'heading' && headingReference !== null ? -headingReference : 0;
   const mapRotation = useContinuousAngle(mapRotationTarget);
   const markerRotation = useContinuousAngle(markerHeading);
   const counterRotation = -mapRotation;
