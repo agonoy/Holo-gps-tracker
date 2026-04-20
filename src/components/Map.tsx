@@ -38,8 +38,6 @@ function MapActions({
   currentPoint, 
   trailPath,
   mapRotationMode,
-  course,
-  deviceHeading,
   followMode,
   onManualPan
 }: { 
@@ -47,12 +45,11 @@ function MapActions({
   currentPoint: [number, number] | null, 
   trailPath?: PathPoint[],
   mapRotationMode?: 'north-up' | 'heading',
-  course?: number | null,
-  deviceHeading?: number | null,
   followMode?: boolean,
   onManualPan?: () => void
 }) {
   const map = useMap();
+  const shouldFollow = followMode || mapRotationMode === 'heading';
 
   useEffect(() => {
     // Fix for iOS PWA layout shifts causing off-center markers
@@ -62,12 +59,20 @@ function MapActions({
 
   useMapEvents({
     movestart: (e) => {
-      if (e.originalEvent && onManualPan) {
-        // Ignore zoom gestures (wheel, pinch)
-        if (e.originalEvent.type === 'wheel' || e.originalEvent.type === 'dblclick') return;
-        if (e.originalEvent.touches && e.originalEvent.touches.length > 1) return;
-        onManualPan();
+      const originalEvent = (
+        e as L.LeafletEvent & {
+          originalEvent?: MouseEvent | TouchEvent | WheelEvent;
+        }
+      ).originalEvent;
+
+      if (mapRotationMode !== 'north-up' || !originalEvent || !onManualPan) {
+        return;
       }
+
+      // Ignore zoom gestures (wheel, pinch)
+      if (originalEvent.type === 'wheel' || originalEvent.type === 'dblclick') return;
+      if ('touches' in originalEvent && originalEvent.touches.length > 1) return;
+      onManualPan();
     }
   });
   
@@ -82,10 +87,10 @@ function MapActions({
   }, [recenterTrigger, map]);
 
   useEffect(() => {
-    if (followMode && lat !== null && lng !== null) {
+    if (shouldFollow && lat !== null && lng !== null) {
       map.setView([lat, lng], map.getZoom(), { animate: false });
     }
-  }, [followMode, lat, lng, map]);
+  }, [shouldFollow, lat, lng, map]);
 
   useEffect(() => {
     if (trailPath && trailPath.length > 0) {
@@ -115,8 +120,9 @@ export default function Map({
 }: MapProps) {
   const lastPoint = currentLocation || (currentPath.length > 0 ? currentPath[currentPath.length - 1] : null);
 
-  const activeCourse = course !== null ? course : deviceHeading;
-  const rotation = mapRotationMode === 'heading' && activeCourse !== null ? activeCourse : 0;
+  const travelHeading = course;
+  const markerHeading = deviceHeading ?? travelHeading ?? 0;
+  const rotation = mapRotationMode === 'heading' && travelHeading !== null ? travelHeading : 0;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
   const polylineOptions = { color: '#38bdf8', weight: 4, opacity: 0.8 };
@@ -154,8 +160,6 @@ export default function Map({
           currentPoint={lastPoint ? [lastPoint.lat, lastPoint.lng] : null}
           trailPath={trailPath}
           mapRotationMode={mapRotationMode}
-          course={course}
-          deviceHeading={deviceHeading}
           followMode={followMode}
           onManualPan={onManualPan}
         />
@@ -249,7 +253,7 @@ export default function Map({
               display: flex;
               align-items: center;
               justify-content: center;
-              transform: rotate(${deviceHeading !== null ? deviceHeading : (course || 0)}deg);
+              transform: rotate(${markerHeading}deg);
               transition: transform 0.3s ease-out;
               position: relative;
             ">
@@ -285,7 +289,7 @@ export default function Map({
                 "></div>
                 
                 <!-- Center Arrow -->
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${(deviceHeading !== null ? deviceHeading : (activeCourse || 0)) - (mapRotationMode === 'heading' ? (activeCourse || 0) : 0)}deg);">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${markerHeading - (mapRotationMode === 'heading' ? (travelHeading ?? 0) : 0)}deg);">
                   <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
                 </svg>
               </div>

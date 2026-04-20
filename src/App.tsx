@@ -14,6 +14,9 @@ import { createLocalId, loadLocalData, saveLocalData } from './lib/localData';
 
 const LOCAL_USER_ID = 'local-device';
 const LOCAL_MODE_LABEL = 'Local Only';
+const METERS_PER_MILE = 1609.344;
+const MIN_COURSE_DISTANCE_METERS = 8;
+const MAX_COURSE_DISTANCE_METERS = 25;
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -24,6 +27,7 @@ export default function App() {
   const [currentPath, setCurrentPath] = useState<PathPoint[]>([]);
   const [currentLocation, setCurrentLocation] = useState<PathPoint | null>(null);
   const lastSavedPointRef = useRef<PathPoint | null>(null);
+  const lastHeadingPointRef = useRef<PathPoint | null>(null);
   const [currentDistance, setCurrentDistance] = useState<number>(0);
   const [historyRides, setHistoryRides] = useState<PathPoint[][]>([]);
   const [ridesMetadata, setRidesMetadata] = useState<Ride[]>([]);
@@ -203,6 +207,7 @@ export default function App() {
           setCurrentPath(data.currentPath || []);
           if (data.currentPath && data.currentPath.length > 0) {
             lastSavedPointRef.current = data.currentPath[data.currentPath.length - 1];
+            lastHeadingPointRef.current = data.currentPath[data.currentPath.length - 1];
             setCurrentLocation(data.currentPath[data.currentPath.length - 1]);
           }
           setCurrentDistance(data.currentDistance || 0);
@@ -247,9 +252,13 @@ export default function App() {
     setUseHighAccuracy(true); // Reset to high accuracy for new attempt
     setActiveRide(true);
     setIsPaused(false);
+    setFollowMode(true);
+    setMapRotationMode('heading');
     setCurrentPath([]);
     setCurrentLocation(null);
     lastSavedPointRef.current = null;
+    lastHeadingPointRef.current = null;
+    setCourse(null);
     setCurrentDistance(0);
     resumeWatching();
   };
@@ -275,10 +284,45 @@ export default function App() {
           setLastGpsUpdate(Date.now());
           setGpsError(null); // Clear error on success
 
-          const isValidHeading = pos.coords.heading !== null && !isNaN(pos.coords.heading);
+          const reportedHeading = pos.coords.heading;
+          const isValidHeading =
+            reportedHeading !== null &&
+            !Number.isNaN(reportedHeading) &&
+            (pos.coords.speed === null || pos.coords.speed > 1);
 
           if (isValidHeading) {
-            setCourse(pos.coords.heading);
+            setCourse((reportedHeading + 360) % 360);
+            lastHeadingPointRef.current = newPoint;
+          } else if (lastHeadingPointRef.current) {
+            const lastHeadingPoint = lastHeadingPointRef.current;
+            const headingDistance = getDistance(
+              lastHeadingPoint.lat,
+              lastHeadingPoint.lng,
+              newPoint.lat,
+              newPoint.lng,
+            );
+            const headingThresholdMiles =
+              Math.min(
+                MAX_COURSE_DISTANCE_METERS,
+                Math.max(
+                  MIN_COURSE_DISTANCE_METERS,
+                  Math.max(lastHeadingPoint.accuracy ?? 0, newPoint.accuracy ?? 0),
+                ),
+              ) / METERS_PER_MILE;
+
+            if (headingDistance >= headingThresholdMiles) {
+              setCourse(
+                getBearing(
+                  lastHeadingPoint.lat,
+                  lastHeadingPoint.lng,
+                  newPoint.lat,
+                  newPoint.lng,
+                ),
+              );
+              lastHeadingPointRef.current = newPoint;
+            }
+          } else {
+            lastHeadingPointRef.current = newPoint;
           }
 
           setCurrentLocation(newPoint);
@@ -336,6 +380,7 @@ export default function App() {
 
   const resumeRide = () => {
     setIsPaused(false);
+    setFollowMode(true);
     resumeWatching();
   };
 
@@ -353,7 +398,9 @@ export default function App() {
     setBacktrackEnabled(false);
     setGpsAccuracy(0);
     setCurrentLocation(null);
+    setCourse(null);
     lastSavedPointRef.current = null;
+    lastHeadingPointRef.current = null;
     setCurrentAddress('Searching...');
 
     if (finalPath.length < 2 || finalDistance < 0.01) return;
@@ -508,6 +555,7 @@ export default function App() {
   if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_LOCAL_RECORDS...</div>;
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId);
+  const displayedHeading = course ?? deviceHeading;
 
   // Helper to split mileage for odometer display
   const getOdoDigits = (totalMileage: number) => {
@@ -820,7 +868,7 @@ export default function App() {
                   {/* Visual Compass Needle */}
                 <div 
                   className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-500"
-                  style={{ transform: `rotate(${mapRotationMode === 'heading' && (course !== null || deviceHeading !== null) ? -(course !== null ? course : deviceHeading!) : 0}deg)` }}
+                  style={{ transform: `rotate(${mapRotationMode === 'heading' && course !== null ? -course : 0}deg)` }}
                 >
                   <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
                   <div className="w-px h-full bg-border/30 absolute" />
@@ -831,10 +879,10 @@ export default function App() {
 
                 <div className="flex flex-col items-end">
                   <span className="text-[11px] font-black tracking-widest text-accent uppercase">
-                    {(deviceHeading !== null || course !== null) ? `${getCardinalDirection((deviceHeading !== null ? deviceHeading : course)!)} ${Math.round((deviceHeading !== null ? deviceHeading : course)!)}°` : '---°'}
+                    {displayedHeading !== null ? `${getCardinalDirection(displayedHeading)} ${Math.round(displayedHeading)}°` : '---°'}
                   </span>
                   <span className="text-[8px] font-bold text-text-dim uppercase leading-none">
-                    {(deviceHeading !== null || course !== null) ? getFullDirection((deviceHeading !== null ? deviceHeading : course)!) : 'Compass Off'}
+                    {displayedHeading !== null ? getFullDirection(displayedHeading) : 'Compass Off'}
                   </span>
                 </div>
                 <div className="w-px h-6 bg-border" />
@@ -842,15 +890,14 @@ export default function App() {
                   onPointerDownCapture={(e) => e.stopPropagation()}
                   onClick={async () => {
                     if (mapRotationMode === 'north-up') {
+                      setFollowMode(true);
+                      setMapRotationMode('heading');
                       if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
                         try {
-                          const state = await (DeviceOrientationEvent as any).requestPermission();
-                          if (state === 'granted') setMapRotationMode('heading');
+                          await (DeviceOrientationEvent as any).requestPermission();
                         } catch (e) {
                           console.error("Compass Permission Denied", e);
                         }
-                      } else {
-                        setMapRotationMode('heading');
                       }
                     } else {
                       setMapRotationMode('north-up');
