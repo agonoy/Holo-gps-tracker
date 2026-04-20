@@ -86,17 +86,32 @@ export default function App() {
     }
   };
 
+  const lastHeadingRef = useRef<number | null>(null);
+
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      // Use alpha for heading if absolute orientation is available
+      let h: number | null = null;
       if (e.absolute && e.alpha !== null) {
-        // Alpha is 0 at North, 90 at West, 180 at South, 270 at East (counter-clockwise)
-        // We want clockwise: 0-N, 90-E, 180-S, 270-W
-        const h = (360 - e.alpha) % 360;
-        setDeviceHeading(h);
+        h = (360 - e.alpha) % 360;
       } else if ((e as any).webkitCompassHeading !== undefined) {
-        // iOS specific
-        setDeviceHeading((e as any).webkitCompassHeading);
+        h = (e as any).webkitCompassHeading;
+      }
+
+      if (h !== null) {
+        if (lastHeadingRef.current !== null) {
+          // Calculate shortest path to new heading
+          let delta = h - ((lastHeadingRef.current % 360 + 360) % 360);
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
+          
+          // Apply low-pass filter (smoothing) and maintain cumulative value to prevent 360 wrap spins
+          const smoothed = lastHeadingRef.current + (delta * 0.15);
+          lastHeadingRef.current = smoothed;
+          setDeviceHeading(smoothed);
+        } else {
+          lastHeadingRef.current = h;
+          setDeviceHeading(h);
+        }
       }
     };
 
@@ -668,7 +683,7 @@ export default function App() {
                 setIsLeftSidebarOpen(false);
                 setIsRightSidebarOpen(false);
               }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[90] lg:hidden"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1500] lg:hidden"
             />
           )}
         </AnimatePresence>
@@ -682,7 +697,7 @@ export default function App() {
             if (info.offset.x < -100) setIsLeftSidebarOpen(false);
           }}
           className={`
-            fixed inset-y-0 left-0 z-[110] w-72 bg-panel border-r border-border p-6 flex flex-col gap-6 overflow-y-auto transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0
+            fixed inset-y-0 left-0 z-[2000] w-72 bg-panel border-r border-border p-6 flex flex-col gap-6 overflow-y-auto transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0
             ${isLeftSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           `}
         >
@@ -958,7 +973,7 @@ export default function App() {
             if (info.offset.x > 100) setIsRightSidebarOpen(false);
           }}
           className={`
-            fixed inset-y-0 right-0 z-[110] w-80 bg-panel border-l border-border flex flex-col shadow-2xl lg:shadow-none transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0
+            fixed inset-y-0 right-0 z-[2000] w-80 bg-panel border-l border-border flex flex-col shadow-2xl lg:shadow-none transition-transform duration-300 lg:relative lg:translate-x-0 lg:z-0
             ${isRightSidebarOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
           `}
         >

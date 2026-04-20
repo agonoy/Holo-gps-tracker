@@ -133,7 +133,7 @@ export default function Map({
   return (
     <div className="relative h-full w-full overflow-hidden bg-brand-surface">
       <div 
-        className="absolute transition-transform duration-500 ease-out"
+        className="absolute transition-transform duration-[150ms] ease-linear"
         style={{ 
           width: '150vmax', 
           height: '150vmax',
