@@ -27,7 +27,6 @@ interface MapProps {
   gpsAccuracy?: number;
   recenterTrigger?: number;
   course?: number | null;
-  deviceHeading?: number | null;
   mapRotationMode?: 'north-up' | 'heading';
   followMode?: boolean;
   onManualPan?: () => void;
@@ -113,7 +112,6 @@ export default function Map({
   gpsAccuracy = 0,
   recenterTrigger = 0,
   course = null,
-  deviceHeading = null,
   mapRotationMode = 'north-up',
   followMode = true,
   onManualPan
@@ -121,7 +119,7 @@ export default function Map({
   const lastPoint = currentLocation || (currentPath.length > 0 ? currentPath[currentPath.length - 1] : null);
 
   const travelHeading = course;
-  const markerHeading = deviceHeading ?? travelHeading ?? 0;
+  const markerHeading = travelHeading ?? 0;
   const rotation = mapRotationMode === 'heading' ? markerHeading : 0;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
@@ -133,7 +131,8 @@ export default function Map({
   return (
     <div className="relative h-full w-full overflow-hidden bg-brand-surface">
       <div 
-        className="absolute transition-transform duration-500 ease-out"
+        id="map-rotation-container"
+        className="absolute"
         style={{ 
           width: '150vmax', 
           height: '150vmax',

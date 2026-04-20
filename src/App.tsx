@@ -59,8 +59,10 @@ export default function App() {
   const trailInputRef = useRef<HTMLInputElement>(null);
 
   const [course, setCourse] = useState<number | null>(null);
-  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [mapRotationMode, setMapRotationMode] = useState<'north-up' | 'heading'>('north-up');
+  const mapRotationModeRef = useRef(mapRotationMode);
+  useEffect(() => { mapRotationModeRef.current = mapRotationMode; }, [mapRotationMode]);
+  const deviceHeadingRef = useRef<number | null>(null);
   const [showDirectionPanel, setShowDirectionPanel] = useState(true);
   const [showHeadingPanel, setShowHeadingPanel] = useState(true);
 
@@ -92,7 +94,6 @@ export default function App() {
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       let h: number | null = null;
-      // Prioritize iOS explicit compass heading. iOS alpha is often inverted or unreliable.
       if ((e as any).webkitCompassHeading !== undefined) {
         h = (e as any).webkitCompassHeading;
       } else if (e.absolute && e.alpha !== null) {
@@ -101,24 +102,36 @@ export default function App() {
 
       if (h !== null) {
         const now = Date.now();
-        // Throttle updates to ~15fps (every 66ms) to prevent React from freezing and vibrating
-        if (now - lastUpdateRef.current > 66) {
+        if (now - lastUpdateRef.current > 16) { // 60fps native DOM updates
           if (lastHeadingRef.current !== null) {
             let delta = h - ((lastHeadingRef.current % 360 + 360) % 360);
             if (delta > 180) delta -= 360;
             if (delta < -180) delta += 360;
-            
-            // Ignore tiny sensor noise vibrations
-            if (Math.abs(delta) < 1.0) return;
-
             const nextHeading = lastHeadingRef.current + delta;
             lastHeadingRef.current = nextHeading;
-            setDeviceHeading(nextHeading);
           } else {
             lastHeadingRef.current = h;
-            setDeviceHeading(h);
           }
           lastUpdateRef.current = now;
+          deviceHeadingRef.current = lastHeadingRef.current;
+
+          // NATIVE DOM MANIPULATION (Bypass React)
+          const currentH = lastHeadingRef.current;
+          if (mapRotationModeRef.current === 'heading') {
+             const mapEl = document.getElementById('map-rotation-container');
+             if (mapEl) mapEl.style.transform = `translate(-50%, -50%) rotate(${-currentH}deg)`;
+          }
+          const needleEl = document.getElementById('compass-needle-container');
+          if (needleEl) {
+             needleEl.style.transform = `rotate(${-currentH}deg)`;
+          }
+          const textEl = document.getElementById('compass-text-value');
+          if (textEl) {
+             const deg = ((currentH % 360) + 360) % 360;
+             const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+             const idx = Math.round(deg / 45) % 8;
+             textEl.innerText = `${dirs[idx]} ${Math.round(deg)}°`;
+          }
         }
       }
     };
@@ -722,16 +735,17 @@ export default function App() {
           {showHeadingPanel && (
             <div className="flex flex-1 items-center justify-end gap-3 bg-panel border border-border px-3 py-1.5 rounded-lg transition-all">
               <div className="flex flex-col items-end">
-                <span className="text-[11px] font-black tracking-widest text-accent uppercase">
-                  {displayedHeading !== null ? `${getCardinalDirection(displayedHeading)} ${Math.round(displayedHeading)}°` : '---°'}
+                <span id="compass-text-value" className="text-[11px] font-black tracking-widest text-accent uppercase min-w-[50px] text-right">
+                  {course !== null ? `${getCardinalDirection(course)} ${Math.round(course)}°` : '---°'}
                 </span>
                 <span className="text-[8px] font-bold text-text-dim uppercase leading-none">
-                  {displayedHeading !== null ? getFullDirection(displayedHeading) : 'Compass Off'}
+                  {course !== null ? getFullDirection(course) : 'Compass'}
                 </span>
               </div>
               <div 
-                className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-500 shrink-0"
-                style={{ transform: `rotate(${mapRotationMode === 'heading' && displayedHeading !== null ? -displayedHeading : 0}deg)` }}
+                id="compass-needle-container"
+                className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center shrink-0"
+                style={{ transform: `rotate(${mapRotationMode === 'heading' && course !== null ? -course : 0}deg)` }}
               >
                 <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
                 <div className="w-px h-full bg-border/30 absolute" />
@@ -915,7 +929,6 @@ export default function App() {
             gpsAccuracy={gpsAccuracy}
             recenterTrigger={recenterTrigger}
             course={course}
-            deviceHeading={deviceHeading}
             mapRotationMode={mapRotationMode}
             followMode={followMode}
             onManualPan={() => {
