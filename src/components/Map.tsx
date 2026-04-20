@@ -62,9 +62,10 @@ function MapActions({
 
   useMapEvents({
     movestart: (e) => {
-      // Only trigger manual pan if the move was initiated by user interaction (mouse/touch)
-      // Programmatic moves like map.panTo will NOT have e.originalEvent
       if (e.originalEvent && onManualPan) {
+        // Ignore zoom gestures (wheel, pinch)
+        if (e.originalEvent.type === 'wheel' || e.originalEvent.type === 'dblclick') return;
+        if (e.originalEvent.touches && e.originalEvent.touches.length > 1) return;
         onManualPan();
       }
     }
@@ -141,6 +142,7 @@ export default function Map({
           center={lastPoint ? [lastPoint.lat, lastPoint.lng] : center} 
           zoom={zoom} 
           scrollWheelZoom={true} 
+          dragging={mapRotationMode === 'north-up'}
           className="h-full w-full bg-transparent border-0"
         >
           <TileLayer
