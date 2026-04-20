@@ -946,11 +946,10 @@ export default function App() {
             <button 
               onClick={() => {
                 setRecenterTrigger(t => t + 1);
-                setMapRotationMode('north-up');
                 setFollowMode(true);
               }}
               className="bg-panel/90 backdrop-blur border border-border p-3 rounded-full shadow-lg hover:text-accent transition-all active:scale-90"
-              title="Recenter & Reorient"
+              title="Recenter"
             >
               <Target size={20} />
             </button>
