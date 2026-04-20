@@ -78,7 +78,7 @@ function MapActions({
 
   useEffect(() => {
     if (followMode && lat !== null && lng !== null) {
-      map.panTo([lat, lng], { animate: true });
+      map.panTo([lat, lng], { animate: false });
     }
   }, [followMode, lat, lng, map]);
 
@@ -279,7 +279,7 @@ export default function Map({
                 "></div>
                 
                 <!-- Center Arrow -->
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${(activeCourse || 0) - (deviceHeading !== null ? deviceHeading : (activeCourse || 0))}deg);">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${(deviceHeading !== null ? deviceHeading : (activeCourse || 0)) - (mapRotationMode === 'heading' ? (activeCourse || 0) : 0)}deg);">
                   <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
                 </svg>
               </div>
