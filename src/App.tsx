@@ -1014,6 +1014,30 @@ export default function App() {
             </div>
           )}
 
+          <div className="px-6 mt-4 flex flex-col gap-4">
+            <div className="sleek-label">Display Options</div>
+            <div className="bg-bg/40 p-4 rounded-lg border border-border/50 space-y-3">
+              <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                <span className="text-text-dim">Direction Panel</span>
+                <button 
+                  onClick={() => setShowDirectionPanel(!showDirectionPanel)}
+                  className={`px-3 py-1 rounded border transition-all ${showDirectionPanel ? 'bg-accent border-accent text-bg' : 'border-border text-text-dim hover:text-white'}`}
+                >
+                  {showDirectionPanel ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="flex justify-between items-center text-[10px] font-bold uppercase">
+                <span className="text-text-dim">Heading Panel</span>
+                <button 
+                  onClick={() => setShowHeadingPanel(!showHeadingPanel)}
+                  className={`px-3 py-1 rounded border transition-all ${showHeadingPanel ? 'bg-accent border-accent text-bg' : 'border-border text-text-dim hover:text-white'}`}
+                >
+                  {showHeadingPanel ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="px-6 pb-6 mt-4 flex flex-col gap-4">
             <div className="sleek-label">Activity Log</div>
             <div className="flex flex-col gap-3">
