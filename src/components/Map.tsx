@@ -1,6 +1,6 @@
 import { MapContainer, TileLayer, Polyline, Marker, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import type { PathPoint } from '../types';
 
 // Fix for Leaflet default marker icons in Vite
@@ -16,6 +16,20 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
+function getShortestAngleDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function useContinuousAngle(target: number): number {
+  const [angle, setAngle] = useState(target);
+
+  useEffect(() => {
+    setAngle((previous) => previous + getShortestAngleDelta(previous, target));
+  }, [target]);
+
+  return angle;
+}
+
 interface MapProps {
   currentLocation?: PathPoint | null;
   currentPath: PathPoint[];
@@ -27,6 +41,7 @@ interface MapProps {
   gpsAccuracy?: number;
   recenterTrigger?: number;
   course?: number | null;
+  deviceHeading?: number | null;
   mapRotationMode?: 'north-up' | 'heading';
   followMode?: boolean;
   onManualPan?: () => void;
@@ -112,6 +127,7 @@ export default function Map({
   gpsAccuracy = 0,
   recenterTrigger = 0,
   course = null,
+  deviceHeading = null,
   mapRotationMode = 'north-up',
   followMode = true,
   onManualPan
@@ -119,8 +135,11 @@ export default function Map({
   const lastPoint = currentLocation || (currentPath.length > 0 ? currentPath[currentPath.length - 1] : null);
 
   const travelHeading = course;
-  const markerHeading = travelHeading ?? 0;
-  const rotation = mapRotationMode === 'heading' ? markerHeading : 0;
+  const markerHeading = deviceHeading ?? travelHeading ?? 0;
+  const mapRotationTarget = mapRotationMode === 'heading' && travelHeading !== null ? -travelHeading : 0;
+  const mapRotation = useContinuousAngle(mapRotationTarget);
+  const markerRotation = useContinuousAngle(markerHeading);
+  const counterRotation = -mapRotation;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
   const polylineOptions = { color: '#38bdf8', weight: 4, opacity: 0.8 };
@@ -131,8 +150,7 @@ export default function Map({
   return (
     <div className="relative h-full w-full overflow-hidden bg-brand-surface">
       <div 
-        id="map-rotation-container"
-        className="absolute"
+        className="absolute transition-transform duration-300 ease-linear"
         style={{ 
           width: '150vmax', 
           height: '150vmax',
@@ -140,7 +158,8 @@ export default function Map({
           left: '50%',
           marginTop: '-75vmax',
           marginLeft: '-75vmax',
-          transform: `rotate(${-rotation}deg)` 
+          transform: `rotate(${mapRotation}deg)`,
+          willChange: 'transform',
         }}
       >
         <MapContainer 
@@ -205,7 +224,7 @@ export default function Map({
             className: 'start-marker',
             html: `
               <div style="
-                transform: rotate(${rotation}deg); 
+                transform: rotate(${counterRotation}deg); 
                 background-color: #ef4444; 
                 width: 24px; 
                 height: 24px; 
@@ -233,7 +252,7 @@ export default function Map({
           position={[trailPath[trailPath.length - 1].lat, trailPath[trailPath.length - 1].lng]}
           icon={L.divIcon({
             className: 'end-marker',
-            html: `<div style="transform: rotate(${rotation}deg); background-color: #22c55e; width: 12px; height: 12px; border-radius: 2px; border: 2px solid white; box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);"></div>`,
+            html: `<div style="transform: rotate(${counterRotation}deg); background-color: #22c55e; width: 12px; height: 12px; border-radius: 2px; border: 2px solid white; box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);"></div>`,
             iconSize: [12, 12],
             iconAnchor: [6, 6]
           })}
@@ -252,8 +271,8 @@ export default function Map({
               display: flex;
               align-items: center;
               justify-content: center;
-              transform: rotate(${markerHeading}deg);
-              transition: transform 0.3s ease-out;
+              transform: rotate(${markerRotation}deg);
+              transition: transform 0.3s linear;
               position: relative;
             ">
               <!-- Vision Cone -->
@@ -288,7 +307,7 @@ export default function Map({
                 "></div>
                 
                 <!-- Center Arrow -->
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10; transform: rotate(${markerHeading - (mapRotationMode === 'heading' ? (travelHeading ?? 0) : 0)}deg);">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="${isSignalLost ? '#94a3b8' : '#38bdf8'}" stroke="white" stroke-width="2" style="position: absolute; z-index: 10;">
                   <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
                 </svg>
               </div>
