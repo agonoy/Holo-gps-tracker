@@ -103,7 +103,9 @@ export default function App() {
 
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      if ((e as any).webkitCompassHeading !== undefined) {
+      if ((e as any).webkitCompassTrueHeading !== undefined && (e as any).webkitCompassTrueHeading >= 0) {
+        setDeviceHeading((e as any).webkitCompassTrueHeading);
+      } else if ((e as any).webkitCompassHeading !== undefined) {
         setDeviceHeading((e as any).webkitCompassHeading);
       } else if (e.absolute && e.alpha !== null) {
         setDeviceHeading((360 - e.alpha) % 360);
