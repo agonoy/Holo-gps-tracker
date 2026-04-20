@@ -566,8 +566,6 @@ export default function App() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_LOCAL_RECORDS...</div>;
-
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId);
   const displayedHeading = course ?? deviceHeading;
   const directionToBaseRotationTarget =
@@ -583,6 +581,8 @@ export default function App() {
   const headingNeedleRotationTarget =
     mapRotationMode === 'heading' && displayedHeading !== null ? -displayedHeading : 0;
   const headingNeedleRotation = useContinuousAngle(headingNeedleRotationTarget);
+
+  if (loading) return <div className="flex items-center justify-center h-screen bg-bg text-white font-mono">LOADING_LOCAL_RECORDS...</div>;
 
   // Helper to split mileage for odometer display
   const getOdoDigits = (totalMileage: number) => {
