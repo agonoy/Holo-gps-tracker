@@ -9,6 +9,37 @@ export default defineConfig(({mode}) => {
   return {
     base: '/Holo-gps-tracker/',
     plugins: [react(), tailwindcss(), basicSsl()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return;
+            }
+
+            if (id.includes('react-leaflet') || id.includes('/leaflet/')) {
+              return 'map-vendor';
+            }
+
+            if (id.includes('motion')) {
+              return 'motion-vendor';
+            }
+
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor';
+            }
+
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('scheduler')
+            ) {
+              return 'react-vendor';
+            }
+          },
+        },
+      },
+    },
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },

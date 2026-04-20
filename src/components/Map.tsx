@@ -1,7 +1,8 @@
 import { MapContainer, TileLayer, Polyline, Marker, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { PathPoint } from '../types';
+import { useCinematicAngle } from '../lib/motion';
 
 // Fix for Leaflet default marker icons in Vite
 import 'leaflet/dist/leaflet.css';
@@ -15,20 +16,6 @@ const DefaultIcon = L.icon({
     iconAnchor: [12, 41]
 });
 L.Marker.prototype.options.icon = DefaultIcon;
-
-function getShortestAngleDelta(from: number, to: number): number {
-  return ((to - from + 540) % 360) - 180;
-}
-
-function useContinuousAngle(target: number): number {
-  const [angle, setAngle] = useState(target);
-
-  useEffect(() => {
-    setAngle((previous) => previous + getShortestAngleDelta(previous, target));
-  }, [target]);
-
-  return angle;
-}
 
 interface MapProps {
   currentLocation?: PathPoint | null;
@@ -138,8 +125,8 @@ export default function Map({
   const markerHeading = headingReference ?? 0;
   const mapRotationTarget =
     mapRotationMode === 'heading' && headingReference !== null ? -headingReference : 0;
-  const mapRotation = useContinuousAngle(mapRotationTarget);
-  const markerRotation = useContinuousAngle(markerHeading);
+  const mapRotation = useCinematicAngle(mapRotationTarget, { alpha: 0.15, deadband: 0.8, maxStep: 8 });
+  const markerRotation = useCinematicAngle(markerHeading, { alpha: 0.2, deadband: 0.8, maxStep: 12 });
   const counterRotation = -mapRotation;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
@@ -151,7 +138,7 @@ export default function Map({
   return (
     <div className="relative h-full w-full overflow-hidden bg-brand-surface">
       <div 
-        className="absolute transition-transform duration-300 ease-linear"
+        className="absolute"
         style={{ 
           width: '150vmax', 
           height: '150vmax',
@@ -273,7 +260,6 @@ export default function Map({
               align-items: center;
               justify-content: center;
               transform: rotate(${markerRotation}deg);
-              transition: transform 0.3s linear;
               position: relative;
             ">
               <!-- Vision Cone -->
