@@ -86,32 +86,17 @@ export default function App() {
     }
   };
 
-  const lastHeadingRef = useRef<number | null>(null);
-
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      let h: number | null = null;
+      // Use alpha for heading if absolute orientation is available
       if (e.absolute && e.alpha !== null) {
-        h = (360 - e.alpha) % 360;
+        // Alpha is 0 at North, 90 at West, 180 at South, 270 at East (counter-clockwise)
+        // We want clockwise: 0-N, 90-E, 180-S, 270-W
+        const h = (360 - e.alpha) % 360;
+        setDeviceHeading(h);
       } else if ((e as any).webkitCompassHeading !== undefined) {
-        h = (e as any).webkitCompassHeading;
-      }
-
-      if (h !== null) {
-        if (lastHeadingRef.current !== null) {
-          // Calculate shortest path to new heading
-          let delta = h - ((lastHeadingRef.current % 360 + 360) % 360);
-          if (delta > 180) delta -= 360;
-          if (delta < -180) delta += 360;
-          
-          // Apply low-pass filter (smoothing) and maintain cumulative value to prevent 360 wrap spins
-          const smoothed = lastHeadingRef.current + (delta * 0.15);
-          lastHeadingRef.current = smoothed;
-          setDeviceHeading(smoothed);
-        } else {
-          lastHeadingRef.current = h;
-          setDeviceHeading(h);
-        }
+        // iOS specific
+        setDeviceHeading((e as any).webkitCompassHeading);
       }
     };
 
@@ -1184,7 +1169,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[3000] flex items-center justify-center p-6"
           >
             <div className="bg-panel border border-red-500/30 p-8 rounded-2xl max-w-sm w-full text-center">
               <Trash2 className="mx-auto text-red-500 mb-4" size={40} />
@@ -1217,7 +1202,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-6"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }}
@@ -1267,7 +1252,7 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-6"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[3000] flex items-center justify-center p-6"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }}
