@@ -18,6 +18,20 @@ const METERS_PER_MILE = 1609.344;
 const MIN_COURSE_DISTANCE_METERS = 4;
 const MAX_COURSE_DISTANCE_METERS = 15;
 
+function getShortestAngleDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+function useContinuousAngle(target: number): number {
+  const [angle, setAngle] = useState(target);
+
+  useEffect(() => {
+    setAngle((previous) => previous + getShortestAngleDelta(previous, target));
+  }, [target]);
+
+  return angle;
+}
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -556,6 +570,19 @@ export default function App() {
 
   const currentVehicle = vehicles.find(v => v.id === selectedVehicleId);
   const displayedHeading = course ?? deviceHeading;
+  const directionToBaseRotationTarget =
+    currentPath.length > 0 && course !== null
+      ? getBearing(
+          currentPath[currentPath.length - 1].lat,
+          currentPath[currentPath.length - 1].lng,
+          currentPath[0].lat,
+          currentPath[0].lng,
+        ) - (mapRotationMode === 'heading' ? course : 0)
+      : 0;
+  const directionToBaseRotation = useContinuousAngle(directionToBaseRotationTarget);
+  const headingNeedleRotationTarget =
+    mapRotationMode === 'heading' && displayedHeading !== null ? -displayedHeading : 0;
+  const headingNeedleRotation = useContinuousAngle(headingNeedleRotationTarget);
 
   // Helper to split mileage for odometer display
   const getOdoDigits = (totalMileage: number) => {
@@ -663,88 +690,6 @@ export default function App() {
             />
           )}
         </AnimatePresence>
-
-        {/* Sub Header for Floating Panels */}
-        {(showDirectionPanel || showHeadingPanel) && (
-          <div className="bg-brand-surface border-b border-border z-[100] flex flex-wrap items-center justify-between px-4 py-2 shrink-0 empty:hidden gap-4">
-            {/* Direction to Base */}
-            {showDirectionPanel && activeRide && currentPath.length > 0 && (
-              <div className="flex flex-1 items-center justify-between gap-4 bg-panel border border-border px-3 py-1.5 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="bg-green-500/10 p-1.5 rounded-full">
-                    <ArrowUp 
-                      className="text-green-500 transition-transform duration-500" 
-                      size={16} 
-                      style={{ 
-                        transform: `rotate(${course !== null ? (getBearing(currentPath[currentPath.length-1].lat, currentPath[currentPath.length-1].lng, currentPath[0].lat, currentPath[0].lng) - (mapRotationMode === 'heading' ? course : 0)) : 0}deg)` 
-                      }} 
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[12px] font-black leading-none">{formatMileage(getDirectDist())} mi</span>
-                    <span className="text-[7px] font-bold text-text-dim uppercase">Direct Line</span>
-                  </div>
-                  <button 
-                    onClick={() => setShowDirectionPanel(false)}
-                    className="p-0.5 ml-2 hover:bg-white/10 rounded-full transition-colors"
-                  >
-                    <X size={12} className="text-text-dim" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Compass / Heading */}
-            {showHeadingPanel && (
-              <div className="flex flex-1 items-center justify-end gap-3 bg-panel border border-border px-3 py-1.5 rounded-lg transition-all">
-                <div className="flex flex-col items-end">
-                  <span className="text-[11px] font-black tracking-widest text-accent uppercase min-w-[50px] text-right">
-                    {displayedHeading !== null ? `${getCardinalDirection(displayedHeading)} ${Math.round(displayedHeading)}°` : '---°'}
-                  </span>
-                  <span className="text-[8px] font-bold text-text-dim uppercase leading-none">
-                    {displayedHeading !== null ? getFullDirection(displayedHeading) : 'Compass Off'}
-                  </span>
-                </div>
-                <div 
-                  className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center shrink-0"
-                  style={{ transform: `rotate(${mapRotationMode === 'heading' && course !== null ? -course : 0}deg)` }}
-                >
-                  <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
-                  <div className="w-px h-full bg-border/30 absolute" />
-                  <div className="w-full h-px bg-border/30 absolute" />
-                  <div className="w-1 h-3 bg-red-500 absolute top-1 rounded-full" />
-                  <div className="w-1 h-3 bg-white/30 absolute bottom-1 rounded-full" />
-                </div>
-                <div className="w-px h-6 bg-border mx-2" />
-                <button 
-                  onClick={async () => {
-                    if (mapRotationMode === 'north-up') {
-                      setFollowMode(true);
-                      setMapRotationMode('heading');
-                      await requestCompassPermission();
-                    } else {
-                      setMapRotationMode('north-up');
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md border font-black text-[9px] uppercase tracking-wider transition-all ${mapRotationMode === 'heading' ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/20' : 'bg-bg/50 text-text-dim border-border hover:text-text'}`}
-                >
-                  <Navigation size={10} className={mapRotationMode === 'heading' ? 'fill-current' : ''} />
-                  {mapRotationMode === 'heading' ? 'Heading' : 'North'}
-                </button>
-                <button 
-                  onClick={() => setShowHeadingPanel(false)}
-                  className="p-0.5 ml-2 hover:bg-white/10 rounded-full transition-colors"
-                >
-                  <X size={12} className="text-text-dim" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Left Sidebar (Management) */}
         <motion.aside 
@@ -892,6 +837,103 @@ export default function App() {
               setFollowMode(true);
             }}
           />
+
+          <div className="absolute top-6 left-4 z-[1000] flex flex-col gap-2 pointer-events-none md:left-6">
+            {showDirectionPanel && activeRide && currentPath.length > 0 && (
+              <motion.div 
+                drag
+                dragMomentum={false}
+                className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex flex-col gap-1 pointer-events-auto transition-shadow hover:shadow-2xl cursor-grab active:cursor-grabbing touch-none"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-black uppercase text-accent tracking-tighter">Direction to Base</span>
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  </div>
+                  <button 
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={() => setShowDirectionPanel(false)}
+                    className="p-0.5 hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <X size={12} className="text-text-dim" />
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-500/10 p-1.5 rounded-full">
+                    <ArrowUp 
+                      className="text-green-500 transition-transform duration-300 ease-linear" 
+                      size={16} 
+                      style={{ transform: `rotate(${directionToBaseRotation}deg)` }} 
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[12px] font-black leading-none">{formatMileage(getDirectDist())} mi</span>
+                    <span className="text-[7px] font-bold text-text-dim uppercase">Direct Line</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          <div className="absolute top-6 right-4 z-[1000] flex flex-col items-end gap-2 pointer-events-none md:right-6">
+            {showHeadingPanel && (
+              <motion.div 
+                drag
+                dragMomentum={false}
+                className="flex flex-col gap-2 items-end pointer-events-auto cursor-grab active:cursor-grabbing touch-none"
+              >
+                <div className="bg-panel/90 backdrop-blur border border-border px-3 py-2 rounded-lg shadow-xl flex items-center gap-3 transition-all">
+                  <button 
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={() => setShowHeadingPanel(false)}
+                    className="absolute -top-1.5 -right-1.5 p-1 bg-panel border border-border rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <X size={10} className="text-text-dim hover:text-white" />
+                  </button>
+                  <div 
+                    className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-300 ease-linear"
+                    style={{ transform: `rotate(${headingNeedleRotation}deg)` }}
+                  >
+                    <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
+                    <div className="w-px h-full bg-border/30 absolute" />
+                    <div className="w-full h-px bg-border/30 absolute" />
+                    <div className="w-1 h-3 bg-red-500 absolute top-1 rounded-full" />
+                    <div className="w-1 h-3 bg-white/30 absolute bottom-1 rounded-full" />
+                  </div>
+
+                  <div className="flex flex-col items-end">
+                    <span className="text-[11px] font-black tracking-widest text-accent uppercase">
+                      {displayedHeading !== null ? `${getCardinalDirection(displayedHeading)} ${Math.round(displayedHeading)}°` : '---°'}
+                    </span>
+                    <span className="text-[8px] font-bold text-text-dim uppercase leading-none">
+                      {displayedHeading !== null ? getFullDirection(displayedHeading) : 'Compass Off'}
+                    </span>
+                  </div>
+                  <div className="w-px h-6 bg-border" />
+                  <button 
+                    onPointerDownCapture={(e) => e.stopPropagation()}
+                    onClick={async () => {
+                      if (mapRotationMode === 'north-up') {
+                        setFollowMode(true);
+                        setMapRotationMode('heading');
+                        await requestCompassPermission();
+                      } else {
+                        setMapRotationMode('north-up');
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md border font-black text-[9px] uppercase tracking-wider transition-all ${
+                      mapRotationMode === 'heading' 
+                        ? 'bg-accent text-bg border-accent shadow-lg shadow-accent/20' 
+                        : 'bg-bg/50 text-text-dim border-border hover:text-text'
+                    }`}
+                  >
+                    <Navigation size={10} className={mapRotationMode === 'heading' ? 'fill-current' : ''} />
+                    {mapRotationMode === 'heading' ? 'Heading' : 'North'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
           
           <div className="absolute bottom-6 right-6 flex flex-col gap-2 z-[1000]">
             <button 
