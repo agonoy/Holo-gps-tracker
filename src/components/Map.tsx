@@ -73,7 +73,8 @@ function MapActions({
     if (recenterTrigger > 0 && lat !== null && lng !== null) {
       map.setView([lat, lng], map.getZoom());
     }
-  }, [recenterTrigger, lat, lng, map]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recenterTrigger, map]);
 
   useEffect(() => {
     if (followMode && lat !== null && lng !== null) {
