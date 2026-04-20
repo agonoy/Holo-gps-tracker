@@ -86,17 +86,40 @@ export default function App() {
     }
   };
 
+  const lastHeadingRef = useRef<number | null>(null);
+  const lastUpdateRef = useRef<number>(0);
+
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      // Use alpha for heading if absolute orientation is available
-      if (e.absolute && e.alpha !== null) {
-        // Alpha is 0 at North, 90 at West, 180 at South, 270 at East (counter-clockwise)
-        // We want clockwise: 0-N, 90-E, 180-S, 270-W
-        const h = (360 - e.alpha) % 360;
-        setDeviceHeading(h);
-      } else if ((e as any).webkitCompassHeading !== undefined) {
-        // iOS specific
-        setDeviceHeading((e as any).webkitCompassHeading);
+      let h: number | null = null;
+      // Prioritize iOS explicit compass heading. iOS alpha is often inverted or unreliable.
+      if ((e as any).webkitCompassHeading !== undefined) {
+        h = (e as any).webkitCompassHeading;
+      } else if (e.absolute && e.alpha !== null) {
+        h = (360 - e.alpha) % 360;
+      }
+
+      if (h !== null) {
+        const now = Date.now();
+        // Throttle updates to ~15fps (every 66ms) to prevent React from freezing and vibrating
+        if (now - lastUpdateRef.current > 66) {
+          if (lastHeadingRef.current !== null) {
+            let delta = h - ((lastHeadingRef.current % 360 + 360) % 360);
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            
+            // Ignore tiny sensor noise vibrations
+            if (Math.abs(delta) < 1.0) return;
+
+            const nextHeading = lastHeadingRef.current + delta;
+            lastHeadingRef.current = nextHeading;
+            setDeviceHeading(nextHeading);
+          } else {
+            lastHeadingRef.current = h;
+            setDeviceHeading(h);
+          }
+          lastUpdateRef.current = now;
+        }
       }
     };
 
@@ -708,7 +731,7 @@ export default function App() {
               </div>
               <div 
                 className="relative h-8 w-8 rounded-full border border-border/50 flex items-center justify-center transition-transform duration-500 shrink-0"
-                style={{ transform: `rotate(${mapRotationMode === 'heading' && course !== null ? -course : 0}deg)` }}
+                style={{ transform: `rotate(${mapRotationMode === 'heading' && displayedHeading !== null ? -displayedHeading : 0}deg)` }}
               >
                 <span className="absolute top-0.5 text-[7px] font-black text-red-500">N</span>
                 <div className="w-px h-full bg-border/30 absolute" />
