@@ -15,8 +15,8 @@ import { createLocalId, loadLocalData, saveLocalData } from './lib/localData';
 const LOCAL_USER_ID = 'local-device';
 const LOCAL_MODE_LABEL = 'Local Only';
 const METERS_PER_MILE = 1609.344;
-const MIN_COURSE_DISTANCE_METERS = 8;
-const MAX_COURSE_DISTANCE_METERS = 25;
+const MIN_COURSE_DISTANCE_METERS = 4;
+const MAX_COURSE_DISTANCE_METERS = 15;
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -287,8 +287,7 @@ export default function App() {
           const reportedHeading = pos.coords.heading;
           const isValidHeading =
             reportedHeading !== null &&
-            !Number.isNaN(reportedHeading) &&
-            (pos.coords.speed === null || pos.coords.speed > 1);
+            !Number.isNaN(reportedHeading);
 
           if (isValidHeading) {
             setCourse((reportedHeading + 360) % 360);
@@ -350,11 +349,7 @@ export default function App() {
           if (err.code === 1) msg = "Location Permission Denied";
           if (err.code === 2) {
             msg = "GPS Signal Lost (Unavailable)";
-            // Adaptive Fallback: If high accuracy fails, try lowering it
-            if (enableHighAccuracy) {
-              setUseHighAccuracy(false);
-              setTimeout(() => resumeWatching(false), 2000);
-            }
+            setTimeout(() => resumeWatching(true), 2000);
           }
           if (err.code === 3) msg = "GPS Location Timeout";
           
@@ -363,7 +358,7 @@ export default function App() {
         },
         { 
           enableHighAccuracy, 
-          maximumAge: 1000, 
+          maximumAge: 0, 
           timeout: 10000 // Increased timeout to 10s
         }
       );
@@ -806,8 +801,8 @@ export default function App() {
             mapRotationMode={mapRotationMode}
             followMode={followMode}
             onManualPan={() => {
-              setFollowMode(false);
               setMapRotationMode('north-up');
+              setFollowMode(true);
             }}
           />
           
