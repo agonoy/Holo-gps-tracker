@@ -54,6 +54,12 @@ function MapActions({
 }) {
   const map = useMap();
 
+  useEffect(() => {
+    // Fix for iOS PWA layout shifts causing off-center markers
+    const timer = setTimeout(() => map.invalidateSize(), 500);
+    return () => clearTimeout(timer);
+  }, [map]);
+
   useMapEvents({
     dragstart: () => {
       if (onManualPan) onManualPan();
