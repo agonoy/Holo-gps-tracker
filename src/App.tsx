@@ -757,7 +757,10 @@ export default function App() {
             deviceHeading={deviceHeading}
             mapRotationMode={mapRotationMode}
             followMode={followMode}
-            onManualPan={() => setFollowMode(false)}
+            onManualPan={() => {
+              setFollowMode(false);
+              setMapRotationMode('north-up');
+            }}
           />
           
           <div className="absolute top-6 left-16 z-[1000] flex flex-col gap-2 pointer-events-none">

@@ -118,8 +118,16 @@ export default function Map({
   return (
     <div className="relative h-full w-full overflow-hidden bg-brand-surface">
       <div 
-        className="absolute inset-0 transition-transform duration-500 ease-out"
-        style={{ transform: `rotate(${-rotation}deg) scale(${mapRotationMode === 'heading' ? 1.4 : 1})` }}
+        className="absolute transition-transform duration-500 ease-out"
+        style={{ 
+          width: '150vmax', 
+          height: '150vmax',
+          top: '50%',
+          left: '50%',
+          marginTop: '-75vmax',
+          marginLeft: '-75vmax',
+          transform: `rotate(${-rotation}deg)` 
+        }}
       >
         <MapContainer 
           center={lastPoint ? [lastPoint.lat, lastPoint.lng] : center} 
