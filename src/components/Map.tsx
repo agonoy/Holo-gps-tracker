@@ -61,8 +61,12 @@ function MapActions({
   }, [map]);
 
   useMapEvents({
-    dragstart: () => {
-      if (onManualPan) onManualPan();
+    movestart: (e) => {
+      // Only trigger manual pan if the move was initiated by user interaction (mouse/touch)
+      // Programmatic moves like map.panTo will NOT have e.originalEvent
+      if (e.originalEvent && onManualPan) {
+        onManualPan();
+      }
     }
   });
   
@@ -71,14 +75,14 @@ function MapActions({
 
   useEffect(() => {
     if (recenterTrigger > 0 && lat !== null && lng !== null) {
-      map.setView([lat, lng], map.getZoom());
+      map.setView([lat, lng], map.getZoom(), { animate: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recenterTrigger, map]);
 
   useEffect(() => {
     if (followMode && lat !== null && lng !== null) {
-      map.panTo([lat, lng], { animate: false });
+      map.setView([lat, lng], map.getZoom(), { animate: false });
     }
   }, [followMode, lat, lng, map]);
 
