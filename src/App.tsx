@@ -253,7 +253,7 @@ export default function App() {
     setActiveRide(true);
     setIsPaused(false);
     setFollowMode(true);
-    setMapRotationMode('heading');
+    setMapRotationMode('north-up');
     setCurrentPath([]);
     setCurrentLocation(null);
     lastSavedPointRef.current = null;
