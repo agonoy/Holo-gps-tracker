@@ -122,7 +122,7 @@ export default function Map({
 
   const travelHeading = course;
   const markerHeading = deviceHeading ?? travelHeading ?? 0;
-  const rotation = mapRotationMode === 'heading' && travelHeading !== null ? travelHeading : 0;
+  const rotation = mapRotationMode === 'heading' ? markerHeading : 0;
   const isSignalLost = lastPoint && (Date.now() - lastPoint.timestamp > 10000);
 
   const polylineOptions = { color: '#38bdf8', weight: 4, opacity: 0.8 };

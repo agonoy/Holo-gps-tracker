@@ -73,6 +73,19 @@ export default function App() {
     return str === '{}' ? String(e) : str;
   };
 
+  const requestCompassPermission = async () => {
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      try {
+        const permissionState = await (DeviceOrientationEvent as any).requestPermission();
+        if (permissionState === 'granted') {
+          console.log("Compass permission granted!");
+        }
+      } catch (err) {
+        console.error("Error requesting compass permission:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     const handleOrientation = (e: DeviceOrientationEvent) => {
       // Use alpha for heading if absolute orientation is available
@@ -249,6 +262,7 @@ export default function App() {
 
   const startRide = () => {
     if (!selectedVehicleId || activeRide) return;
+    requestCompassPermission();
     setUseHighAccuracy(true); // Reset to high accuracy for new attempt
     setActiveRide(true);
     setIsPaused(false);
@@ -885,15 +899,9 @@ export default function App() {
                   onPointerDownCapture={(e) => e.stopPropagation()}
                   onClick={async () => {
                     if (mapRotationMode === 'north-up') {
+                      requestCompassPermission();
                       setFollowMode(true);
                       setMapRotationMode('heading');
-                      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-                        try {
-                          await (DeviceOrientationEvent as any).requestPermission();
-                        } catch (e) {
-                          console.error("Compass Permission Denied", e);
-                        }
-                      }
                     } else {
                       setMapRotationMode('north-up');
                     }
