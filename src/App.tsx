@@ -74,7 +74,7 @@ export default function App() {
 
   const [course, setCourse] = useState<number | null>(null);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
-  const [mapRotationMode, setMapRotationMode] = useState<'north-up' | 'heading'>('north-up');
+  const [mapRotationMode, setMapRotationMode] = useState<'north-up' | 'heading'>('heading');
   const [showDirectionPanel, setShowDirectionPanel] = useState(true);
   const [showHeadingPanel, setShowHeadingPanel] = useState(true);
 
